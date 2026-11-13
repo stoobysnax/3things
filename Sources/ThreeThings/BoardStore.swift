@@ -122,37 +122,29 @@ final class BoardStore: ObservableObject {
 
     // MARK: Dropped text
 
-    /// Handles something dropped on a list: one of our own items moves there;
-    /// any other text (e.g. to-dos dragged from Things) becomes new items, one per line.
+    /// Handles something dropped on a list: one of our own items moves there; any other text
+    /// (to-dos dragged from Things, lines from Notes…) becomes new tasks. A Things "When" date is
+    /// used when dropping on Next.
     func receive(_ text: String, to list: ListKind, before: UUID? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let id = UUID(uuidString: trimmed), board.location(of: id) != nil {
             send(id, to: list, before: before)
             return
         }
-        var created: [UUID] = []
+        let dropped = DroppedText.tasks(from: text, today: today)
+        var created: [(id: UUID, day: Day?)] = []
         update { board in
-            for title in Self.titles(from: text) {
-                if let item = board.add(title, to: .next) { created.append(item.id) }
+            for task in dropped {
+                if let item = board.add(task.title, to: .next) { created.append((item.id, task.day)) }
             }
         }
-        for id in created {
+        for (id, day) in created {
             if prompt != nil { break } // the rest wait in Unscheduled
-            send(id, to: list, before: before)
-        }
-    }
-
-    /// One title per line, skipping blank lines, links, and list markers like "- " or "[ ] ".
-    static func titles(from text: String) -> [String] {
-        text.components(separatedBy: .newlines).compactMap { line in
-            var t = line.trimmingCharacters(in: .whitespaces)
-            if t.isEmpty || t.contains("://") { return nil }
-            for marker in ["- [ ] ", "- [x] ", "[ ] ", "[x] ", "- ", "* ", "• ", "☐ ", "◦ "] where t.hasPrefix(marker) {
-                t = String(t.dropFirst(marker.count))
-                break
+            if list == .next, before == nil, let day {
+                if day <= today || board.hasRoom(on: day) { schedule(id, on: day) }
+            } else {
+                send(id, to: list, before: before)
             }
-            t = t.trimmingCharacters(in: .whitespaces)
-            return t.isEmpty ? nil : t
         }
     }
 
