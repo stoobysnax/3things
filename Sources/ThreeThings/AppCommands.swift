@@ -45,9 +45,11 @@ struct AppCommands: Commands {
         }
     }
 
-    /// The undo history of the text box being typed in, if any.
+    /// The undo history of the text box being typed in, but only while it has text in it.
+    /// (An empty box, e.g. right after adding a task, leaves ⌘Z for undoing your last change.)
     private var textUndoManager: UndoManager? {
-        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.isEditable else { return nil }
+        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.isEditable,
+              !editor.string.isEmpty else { return nil }
         return editor.undoManager
     }
 }
