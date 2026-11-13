@@ -6,8 +6,18 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The list rules, scheduling and the day rolling over. Linux machines are quick to get.
+  rules:
+    runs-on: ubuntu-latest
+    container: swift:5.10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test the list rules
+        run: swift test
+
   mac:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -18,9 +28,9 @@ jobs:
         run: ./scripts/build-app.sh
 
       - name: Zip the app
-        run: cd build && ditto -c -k --keepParent "3 Things.app" "3-Things.zip"
+        run: cd build && ditto -c -k --keepParent "3 Today.app" "3-Today.zip"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 3-Things-app
-          path: build/3-Things.zip
+          name: 3-Today-app
+          path: build/3-Today.zip

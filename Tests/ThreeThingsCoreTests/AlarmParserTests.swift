@@ -52,4 +52,36 @@ final class AlarmParserTests: XCTestCase {
         XCTAssertNil(parse("0 min"))
         XCTAssertNil(parse("9:75"))
     }
+
+    // MARK: Days
+
+    private func when(_ text: String) -> AlarmParser.When? { AlarmParser.parseWhen(text, now: now, calendar: calendar) }
+    private var today: Day { Day(now, calendar: calendar) } // Friday, Nov 13 2026
+    private func plus(_ n: Int) -> Day { today.adding(days: n, calendar: calendar) }
+
+    func testDays() {
+        XCTAssertEqual(when("tomorrow"), .init(day: plus(1), time: nil))
+        XCTAssertEqual(when("mon"), .init(day: plus(3), time: nil))
+        XCTAssertEqual(when("next monday"), .init(day: plus(3), time: nil))
+        XCTAssertEqual(when("fri"), .init(day: plus(7), time: nil)) // it's Friday: next Friday
+        XCTAssertEqual(when("today"), .init(day: today, time: nil))
+        XCTAssertEqual(when("in 3 days"), .init(day: plus(3), time: nil))
+        XCTAssertEqual(when("next week"), .init(day: plus(3), time: nil)) // Monday
+    }
+
+    func testDaysWithTimes() {
+        XCTAssertEqual(when("fri 3pm"), .init(day: plus(7), time: at(15, 0)))
+        XCTAssertEqual(when("tomorrow at 9"), .init(day: plus(1), time: at(9, 0)))
+        XCTAssertEqual(when("mon 3"), .init(day: plus(3), time: at(15, 0)))
+        XCTAssertEqual(when("9am tomorrow"), .init(day: plus(1), time: at(9, 0)))
+        XCTAssertEqual(when("in 2 days at 7:30pm"), .init(day: plus(2), time: at(19, 30)))
+    }
+
+    func testTimesAlone() {
+        XCTAssertEqual(when("9pm"), .init(day: nil, time: at(21, 0)))
+        XCTAssertEqual(when("5 min"), .init(day: today, time: at(14, 45)))
+        XCTAssertEqual(when("10 hours"), .init(day: plus(1), time: at(0, 40)))
+        XCTAssertNil(when("mon 5 min"))
+        XCTAssertNil(when("someday"))
+    }
 }

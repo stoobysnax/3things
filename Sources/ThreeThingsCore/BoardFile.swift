@@ -9,14 +9,23 @@ public struct BoardFile {
         self.url = url
     }
 
-    /// ~/Library/Application Support/3 Things/board.json
-    public static var defaultURL: URL {
+    /// ~/Library/Application Support/3 Today/board.json
+    public static var defaultURL: URL { folder("3 Today").appendingPathComponent("board.json") }
+
+    /// Where the app saved before it was renamed from 3 Things. Read once, if nothing newer exists.
+    public static var legacyURL: URL { folder("3 Things").appendingPathComponent("board.json") }
+
+    private static func folder(_ name: String) -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("3 Things", isDirectory: true).appendingPathComponent("board.json")
+        return base.appendingPathComponent(name, isDirectory: true)
     }
 
     public func load() -> Board {
-        guard let data = try? Data(contentsOf: url) else { return Board() }
+        var data = try? Data(contentsOf: url)
+        if data == nil, url == Self.defaultURL {
+            data = try? Data(contentsOf: Self.legacyURL)
+        }
+        guard let data else { return Board() }
         do {
             return try Self.decoder.decode(Board.self, from: data)
         } catch {

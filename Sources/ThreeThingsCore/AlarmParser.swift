@@ -6,21 +6,10 @@ import Foundation
 /// - how long from now: "5 min", "in 20 minutes", "4 hours", "1h 30m", "1.5h", "half an hour", "45"
 ///   (a bare number means minutes)
 /// - a clock time: "9pm", "9:30 pm", "21:00", "9:30" (the next 9:30 to come), "noon", "midnight"
+/// `parseWhen` also reads a day: "tomorrow", "mon", "fri 3pm", "in 3 days".
 public enum AlarmParser {
     public static func parse(_ input: String, now: Date = Date(), calendar: Calendar = .current) -> AlarmTime? {
-        var text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        for word in ["in ", "at "] where text.hasPrefix(word) {
-            text = String(text.dropFirst(word.count))
-        }
-        let replacements = [
-            ("half an hour", "30 min"), ("half hour", "30 min"),
-            ("an hour", "1 hour"), ("a hour", "1 hour"),
-            ("a.m.", "am"), ("p.m.", "pm"),
-        ]
-        for (from, to) in replacements {
-            text = text.replacingOccurrences(of: from, with: to)
-        }
-        text = text.trimmingCharacters(in: .whitespaces)
+        let text = normalize(input)
         guard !text.isEmpty else { return nil }
 
         switch text {
@@ -35,6 +24,109 @@ public enum AlarmParser {
             return AlarmTime(hour: parts.hour ?? 0, minute: parts.minute ?? 0)
         }
         return clockTime(text, now: now, calendar: calendar)
+    }
+
+    /// A day and/or a time, as typed in the "when" box.
+    public struct When: Equatable, Sendable {
+        /// nil when no day was typed (keep whatever day is chosen).
+        public var day: Day?
+        /// nil when no time was typed.
+        public var time: AlarmTime?
+
+        public init(day: Day?, time: AlarmTime?) {
+            self.day = day
+            self.time = time
+        }
+    }
+
+    /// Reads a day, a time, or both: "tomorrow", "mon", "fri 3pm", "tomorrow at 9", "in 3 days",
+    /// "next week", plus everything `parse` takes ("5 min" is today, or tomorrow if it passes midnight).
+    public static func parseWhen(_ input: String, now: Date = Date(), calendar: Calendar = .current) -> When? {
+        var text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        let today = Day(now, calendar: calendar)
+        var day: Day?
+
+        if let groups = captures(inDaysPattern, text), let n = groups[0].flatMap(Int.init) {
+            day = today.adding(days: n, calendar: calendar)
+            text = groups[1] ?? ""
+        } else if text.hasPrefix("next week") {
+            day = upcoming(weekday: 2, after: today, calendar: calendar) // Monday
+            text = String(text.dropFirst("next week".count))
+        } else {
+            var words = text.split(separator: " ").map(String.init)
+            if words.first == "next", words.count > 1, weekday(words[1]) != nil { words.removeFirst() }
+            if let first = words.first, let d = dayWord(first, today: today, calendar: calendar) {
+                day = d
+                words.removeFirst()
+            } else if words.count > 1, let last = words.last, let d = dayWord(last, today: today, calendar: calendar) {
+                day = d
+                words.removeLast()
+            }
+            text = words.joined(separator: " ")
+        }
+
+        let rest = normalize(text)
+        if rest.isEmpty { return day.map { When(day: $0, time: nil) } }
+
+        // With a day, a bare number is an hour: "tomorrow 9" is 9 AM, "fri 3" is 3 PM.
+        if day != nil, let hour = Int(rest), (1...23).contains(hour) {
+            let h = hour <= 6 ? hour + 12 : hour
+            return When(day: day, time: AlarmTime(hour: h, minute: 0))
+        }
+
+        if let minutes = minutesFromNow(rest) {
+            guard day == nil else { return nil } // "mon 5 min" doesn't mean anything
+            let date = now.addingTimeInterval(minutes * 60)
+            return When(day: Day(date, calendar: calendar), time: AlarmTime(date: date, calendar: calendar))
+        }
+        guard let time = parse(rest, now: now, calendar: calendar) else { return nil }
+        return When(day: day, time: time)
+    }
+
+    // MARK: - Days
+
+    private static let inDaysPattern = try! NSRegularExpression(pattern: #"^in (\d+) days?\b\s*(?:at\s+)?(.*)$"#)
+
+    private static func dayWord(_ word: String, today: Day, calendar: Calendar) -> Day? {
+        switch word {
+        case "today", "tonight", "tod": return today
+        case "tomorrow", "tmrw", "tmr", "tom", "tomorow": return today.adding(days: 1, calendar: calendar)
+        default:
+            return weekday(word).map { upcoming(weekday: $0, after: today, calendar: calendar) }
+        }
+    }
+
+    /// Calendar weekday number (1 = Sunday) for a name like "mon" or "thursday".
+    private static func weekday(_ word: String) -> Int? {
+        let names = [["sun", "sunday"], ["mon", "monday"], ["tue", "tues", "tuesday"],
+                     ["wed", "weds", "wednesday"], ["thu", "thur", "thurs", "thursday"],
+                     ["fri", "friday"], ["sat", "saturday"]]
+        return names.firstIndex { $0.contains(word) }.map { $0 + 1 }
+    }
+
+    /// The next day with that weekday, 1 to 7 days after `today`.
+    private static func upcoming(weekday: Int, after today: Day, calendar: Calendar) -> Day {
+        let current = calendar.component(.weekday, from: today.date(calendar: calendar))
+        var ahead = (weekday - current + 7) % 7
+        if ahead == 0 { ahead = 7 }
+        return today.adding(days: ahead, calendar: calendar)
+    }
+
+    private static func normalize(_ input: String) -> String {
+        var text = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        for word in ["in ", "at "] where text.hasPrefix(word) {
+            text = String(text.dropFirst(word.count))
+        }
+        let replacements = [
+            ("half an hour", "30 min"), ("half hour", "30 min"),
+            ("an hour", "1 hour"), ("a hour", "1 hour"),
+            ("a.m.", "am"), ("p.m.", "pm"),
+        ]
+        for (from, to) in replacements {
+            text = text.replacingOccurrences(of: from, with: to)
+        }
+        return text.trimmingCharacters(in: .whitespaces)
     }
 
     // MARK: - "5 min", "1h 30m", "45"
@@ -99,5 +191,12 @@ public enum AlarmParser {
         return (1..<match.numberOfRanges).map { i in
             Range(match.range(at: i), in: text).map { String(text[$0]) }
         }
+    }
+}
+
+extension AlarmTime {
+    public init(date: Date, calendar: Calendar) {
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        self.init(hour: parts.hour ?? 0, minute: parts.minute ?? 0)
     }
 }
