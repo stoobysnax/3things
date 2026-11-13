@@ -23,6 +23,7 @@ struct ItemRow: View {
                     .frame(width: 18)
             }
             .buttonStyle(.plain)
+            .focusable(false)
             .help(isDone ? "Mark as not done" : "Mark as done")
 
             if editing {
@@ -130,6 +131,7 @@ struct AlarmButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .opacity(item.alarm != nil || rowHovering || open ? 1 : 0)
         .help(helpText)
         .popover(isPresented: $open, arrowEdge: .bottom) { editor }

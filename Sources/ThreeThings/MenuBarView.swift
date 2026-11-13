@@ -65,6 +65,7 @@ struct MenuBarPanel: View {
                 Button("Quit") { NSApp.terminate(nil) }
             }
             .buttonStyle(.plain)
+            .focusable(false)
             .font(.system(size: 12))
             .foregroundStyle(theme.secondary)
             .padding(.horizontal, 16)
@@ -113,6 +114,7 @@ struct MenuBarRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .onHover { hovering = $0 }
         .help("Mark as done")
     }

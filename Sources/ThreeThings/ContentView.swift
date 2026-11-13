@@ -108,6 +108,7 @@ struct Sidebar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .focusable(false)
             .help(darkMode ? "Light mode" : "Dark mode")
             .padding(.leading, 4)
             .padding(.bottom, 12)
@@ -157,6 +158,7 @@ struct SidebarRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .onHover { hovering = $0 }
         .onDrop(of: [UTType.plainText], isTargeted: $isTargeted) { providers in
             loadDroppedID(providers) { store.send($0, to: list) }
@@ -245,6 +247,7 @@ struct ListPane: View {
             if list == .done && !isEmpty {
                 Button("Clear") { store.update { $0.clearDone() } }
                     .buttonStyle(.plain)
+                    .focusable(false)
                     .font(.system(size: 13))
                     .foregroundStyle(theme.secondary)
             }
@@ -345,6 +348,7 @@ struct SwapPrompt: View {
                     Spacer()
                     Button("Cancel") { store.cancelSwap() }
                         .buttonStyle(.plain)
+                        .focusable(false)
                         .font(.system(size: 13))
                         .foregroundStyle(theme.secondary)
                         .keyboardShortcut(.cancelAction)
@@ -396,6 +400,7 @@ struct SwapChoice: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .onHover { hovering = $0 }
     }
 }
