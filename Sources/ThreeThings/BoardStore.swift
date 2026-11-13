@@ -26,6 +26,55 @@ final class BoardStore: ObservableObject {
         update { $0.move(id, to: list, at: index ?? (list == .done ? 0 : nil)) }
     }
 
+    /// Handles something dropped on a list: one of our own items moves there;
+    /// any other text (e.g. to-dos dragged from Things) becomes new items, one per line.
+    func receive(_ text: String, to list: ListKind, at index: Int? = nil) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let id = UUID(uuidString: trimmed), board.location(of: id) != nil {
+            send(id, to: list, at: index)
+            return
+        }
+        let titles = Self.titles(from: text)
+        guard !titles.isEmpty else { return }
+
+        var overflow: [UUID] = []
+        update { board in
+            for (offset, title) in titles.enumerated() {
+                guard let item = board.add(title, to: .next) else { continue }
+                let at = index.map { $0 + offset }
+                switch list {
+                case .next:
+                    board.move(item.id, to: .next, at: at)
+                case .done:
+                    board.move(item.id, to: .done, at: at ?? offset)
+                case .three:
+                    if board.three.count < Board.limit {
+                        board.move(item.id, to: .three, at: at)
+                    } else {
+                        // No room: wait at the top of Next, and ask about a swap below.
+                        board.move(item.id, to: .next, at: overflow.count)
+                        overflow.append(item.id)
+                    }
+                }
+            }
+        }
+        if let first = overflow.first { swapIncoming = first }
+    }
+
+    /// One title per line, skipping blank lines, links, and list markers like "- " or "[ ] ".
+    static func titles(from text: String) -> [String] {
+        text.components(separatedBy: .newlines).compactMap { line in
+            var t = line.trimmingCharacters(in: .whitespaces)
+            if t.isEmpty || t.contains("://") { return nil }
+            for marker in ["- [ ] ", "- [x] ", "[ ] ", "[x] ", "- ", "* ", "• ", "☐ ", "◦ "] where t.hasPrefix(marker) {
+                t = String(t.dropFirst(marker.count))
+                break
+            }
+            t = t.trimmingCharacters(in: .whitespaces)
+            return t.isEmpty ? nil : t
+        }
+    }
+
     func swap(with outgoing: UUID) {
         guard let incoming = swapIncoming else { return }
         swapIncoming = nil

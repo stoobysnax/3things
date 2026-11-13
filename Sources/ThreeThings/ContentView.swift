@@ -51,19 +51,23 @@ func dragProvider(for item: Item) -> NSItemProvider {
     NSItemProvider(object: item.id.uuidString as NSString)
 }
 
-/// Reads the dragged item's id and hands it over on the main thread.
-func loadDroppedID(_ providers: [NSItemProvider], _ handle: @escaping (UUID) -> Void) -> Bool {
-    guard let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return false }
-    _ = provider.loadObject(ofClass: NSString.self) { object, _ in
-        guard let text = object as? NSString, let id = UUID(uuidString: text as String) else { return }
-        DispatchQueue.main.async { handle(id) }
+/// Reads dropped text: one of our own items (its id), or text from another app
+/// such as to-dos dragged out of Things. Hands it over on the main thread.
+func loadDroppedText(_ providers: [NSItemProvider], _ handle: @escaping (String) -> Void) -> Bool {
+    let readable = providers.filter { $0.canLoadObject(ofClass: NSString.self) }
+    guard !readable.isEmpty else { return false }
+    for provider in readable {
+        _ = provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let text = object as? NSString else { return }
+            DispatchQueue.main.async { handle(text as String) }
+        }
     }
     return true
 }
 
 /// Drop target that inserts before this view, with a thin line showing where.
 struct InsertDropTarget: ViewModifier {
-    let onDrop: (UUID) -> Void
+    let onDrop: (String) -> Void
     @Environment(\.theme) private var theme
     @State private var targeted = false
 
@@ -78,7 +82,7 @@ struct InsertDropTarget: ViewModifier {
                     .opacity(targeted ? 1 : 0)
                     .allowsHitTesting(false)
             }
-            .onDrop(of: [UTType.plainText], isTargeted: $targeted) { loadDroppedID($0, onDrop) }
+            .onDrop(of: [UTType.plainText], isTargeted: $targeted) { loadDroppedText($0, onDrop) }
     }
 }
 
@@ -161,7 +165,7 @@ struct SidebarRow: View {
         .focusable(false)
         .onHover { hovering = $0 }
         .onDrop(of: [UTType.plainText], isTargeted: $isTargeted) { providers in
-            loadDroppedID(providers) { store.send($0, to: list) }
+            loadDroppedText(providers) { store.receive($0, to: list) }
         }
         .onChange(of: isTargeted) { targeted in
             guard targeted, !isSelected else { return }
@@ -192,7 +196,7 @@ struct ListPane: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         ItemRow(item: item, list: list)
                             .onDrag { dragProvider(for: item) }
-                            .modifier(InsertDropTarget { store.send($0, to: list, at: index) })
+                            .modifier(InsertDropTarget { store.receive($0, to: list, at: index) })
                     }
 
                     Group {
@@ -218,13 +222,13 @@ struct ListPane: View {
                             }
                         }
                     }
-                    .modifier(InsertDropTarget { store.send($0, to: list) })
+                    .modifier(InsertDropTarget { store.receive($0, to: list) })
 
                     // The space below the list also takes drops (to the end).
                     Color.clear
                         .frame(maxWidth: .infinity, minHeight: 120)
                         .contentShape(Rectangle())
-                        .modifier(InsertDropTarget { store.send($0, to: list) })
+                        .modifier(InsertDropTarget { store.receive($0, to: list) })
                 }
                 .padding(.horizontal, 20)
             }

@@ -10,6 +10,9 @@ Drag any item to any list: drop it on a list in the left column, or hold it ther
 that list and drop it at an exact spot. Drag within a list to reorder. Right-click works too.
 Double-click to rename.
 
+**Drag in from other apps**: drag to-dos out of Things (or any text from Notes, Mail, a web page) onto a
+list and each line becomes a new item there.
+
 When 3 Things is full, moving something in asks **which task to swap with**. One click swaps them:
 the new task takes that exact position and the old one goes where the new one came from.
 
