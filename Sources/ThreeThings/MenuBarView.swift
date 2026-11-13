@@ -1,12 +1,22 @@
 import SwiftUI
 import ThreeThingsCore
 
-/// The menu bar icon: a circled number showing how many of today's 3 Things are left.
+/// The menu bar icon: a small copy of the app icon (rounded square with the 3 cut out).
+/// It's a template image, so macOS tints it to match a light or dark menu bar.
 struct MenuBarLabel: View {
-    @EnvironmentObject private var store: BoardStore
+    private static let icon: NSImage? = {
+        guard let image = Bundle.main.image(forResource: "MenuBarIcon") else { return nil }
+        image.isTemplate = true
+        image.size = NSSize(width: 18, height: 18)
+        return image
+    }()
 
     var body: some View {
-        Image(systemName: "\(min(store.board.three.count, Board.limit)).circle")
+        if let icon = Self.icon {
+            Image(nsImage: icon)
+        } else {
+            Image(systemName: "3.square.fill")
+        }
     }
 }
 

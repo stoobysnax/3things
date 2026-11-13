@@ -26,7 +26,6 @@ struct ThreeThingsApp: App {
                 .preferredColorScheme(darkMode ? .dark : .light)
         } label: {
             MenuBarLabel()
-                .environmentObject(store)
         }
         .menuBarExtraStyle(.window)
     }

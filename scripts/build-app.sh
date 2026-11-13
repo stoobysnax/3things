@@ -34,6 +34,9 @@ if [[ -f Resources/AppIcon.png ]]; then
   iconutil -c icns "$SET" -o "$APP/Contents/Resources/AppIcon.icns"
 fi
 
+# Menu bar icon (template image, 18pt with @2x)
+cp Resources/MenuBarIcon*.png "$APP/Contents/Resources/" 2>/dev/null || true
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
