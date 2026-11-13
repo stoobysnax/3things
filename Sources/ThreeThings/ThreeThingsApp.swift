@@ -5,21 +5,29 @@ import UserNotifications
 struct ThreeThingsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = BoardStore()
+    @AppStorage("darkMode") private var darkMode = false
 
     var body: some Scene {
         WindowGroup("3 Things") {
             ContentView()
                 .environmentObject(store)
-                .preferredColorScheme(.light)
+                .environment(\.theme, darkMode ? .dark : .light)
+                .preferredColorScheme(darkMode ? .dark : .light)
+                .onAppear { applyAppearance() }
+                .onChange(of: darkMode) { _ in applyAppearance() }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 720, height: 460)
+    }
+
+    /// Keeps menus, popovers and text fields in the same look as the window.
+    private func applyAppearance() {
+        NSApp.appearance = NSAppearance(named: darkMode ? .darkAqua : .aqua)
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.appearance = NSAppearance(named: .aqua) // always the clean white look
         if Alarms.available {
             UNUserNotificationCenter.current().delegate = self
         }

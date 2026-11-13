@@ -86,4 +86,29 @@ final class BoardTests: XCTestCase {
         try file.save(b)
         XCTAssertEqual(file.load(), b)
     }
+
+    func testSwapFromNextTakesExactPosition() {
+        var b = board(three: ["a", "b", "c"], next: ["d", "e"])
+        b.swap(b.next[1].id, with: b.three[2].id)
+        XCTAssertEqual(titles(b, .three), ["a", "b", "e"])
+        XCTAssertEqual(titles(b, .next), ["d", "c"])
+    }
+
+    func testSwapFromDoneSendsOutgoingToTopOfNext() {
+        var b = board(three: ["a", "b", "c", "x"])
+        b.complete(b.three[0].id) // x moves up; done = [a]
+        b.swap(b.done[0].id, with: b.three[1].id)
+        XCTAssertEqual(titles(b, .three), ["b", "a", "x"])
+        XCTAssertNil(b.three[1].completedAt)
+        XCTAssertEqual(titles(b, .next), ["c"])
+        XCTAssertEqual(titles(b, .done), [])
+    }
+
+    func testMoveDownWithinListLandsWhereDropped() {
+        var b = board(three: ["a", "b", "c"])
+        b.move(b.three[0].id, to: .three, at: 2) // drop "a" before "c"
+        XCTAssertEqual(titles(b, .three), ["b", "a", "c"])
+        b.move(b.three[2].id, to: .three, at: 0) // drop "c" at top
+        XCTAssertEqual(titles(b, .three), ["c", "b", "a"])
+    }
 }

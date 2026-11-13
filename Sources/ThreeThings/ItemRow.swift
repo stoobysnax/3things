@@ -6,6 +6,7 @@ struct ItemRow: View {
     let list: ListKind
 
     @EnvironmentObject private var store: BoardStore
+    @Environment(\.theme) private var theme
     @State private var hovering = false
     @State private var editing = false
     @State private var draft = ""
@@ -18,7 +19,7 @@ struct ItemRow: View {
             Button(action: toggleDone) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 17, weight: .light))
-                    .foregroundStyle(isDone ? Color.secondary : Color.primary.opacity(hovering ? 0.7 : 0.35))
+                    .foregroundStyle(isDone ? theme.faint : (hovering ? theme.secondary : theme.faint))
                     .frame(width: 18)
             }
             .buttonStyle(.plain)
@@ -28,6 +29,7 @@ struct ItemRow: View {
                 TextField("", text: $draft)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
+                    .foregroundStyle(theme.text)
                     .focused($fieldFocused)
                     .onSubmit(commitEdit)
                     .onExitCommand { editing = false }
@@ -37,8 +39,8 @@ struct ItemRow: View {
             } else {
                 Text(item.title)
                     .font(.system(size: 15))
-                    .strikethrough(isDone, color: .secondary)
-                    .foregroundStyle(isDone ? Color.secondary : Color.primary)
+                    .strikethrough(isDone, color: theme.faint)
+                    .foregroundStyle(isDone ? theme.secondary : theme.text)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -49,14 +51,20 @@ struct ItemRow: View {
                 AlarmButton(item: item, isLive: list == .three, rowHovering: hovering)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(hovering ? theme.fill : .clear)
+        )
+        .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu {
             Button("Rename", action: startEdit)
             Divider()
             ForEach(ListKind.allCases.filter { $0 != list }) { target in
                 Button("Move to \(target.title)") {
-                    store.update { $0.move(item.id, to: target, at: target == .done ? 0 : nil) }
+                    store.send(item.id, to: target)
                 }
             }
             Divider()
@@ -97,8 +105,11 @@ struct AlarmButton: View {
     let rowHovering: Bool
 
     @EnvironmentObject private var store: BoardStore
+    @Environment(\.theme) private var theme
     @State private var open = false
     @State private var time = Date()
+
+    private var ringing: Bool { item.alarm != nil && isLive }
 
     var body: some View {
         Button {
@@ -106,16 +117,16 @@ struct AlarmButton: View {
             open = true
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: item.alarm != nil && isLive ? "bell.fill" : "bell")
+                Image(systemName: ringing ? "bell.fill" : "bell")
                 if let alarm = item.alarm {
                     Text(alarm.label).monospacedDigit()
                 }
             }
             .font(.system(size: 12))
-            .foregroundStyle(item.alarm != nil && isLive ? Color.primary.opacity(0.8) : Color.secondary)
+            .foregroundStyle(ringing ? theme.text.opacity(0.85) : theme.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Capsule().fill(Color.black.opacity(item.alarm != nil && isLive ? 0.05 : 0)))
+            .background(Capsule().fill(ringing ? theme.fill : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

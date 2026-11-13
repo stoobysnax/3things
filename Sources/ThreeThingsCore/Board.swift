@@ -83,8 +83,11 @@ public struct Board: Codable, Equatable, Sendable {
     }
 
     /// Moves an item to `target` at `index` (nil = end of the list).
+    /// `index` means "before the item currently at index", so moving within one list lands where it was dropped.
     public mutating func move(_ id: UUID, to target: ListKind, at index: Int? = nil, now: Date = Date()) {
         guard let from = location(of: id) else { return }
+        var index = index
+        if from.list == target, let i = index, from.index < i { index = i - 1 }
         var item = withList(from.list) { $0.remove(at: from.index) }
 
         if target == .done {
@@ -106,6 +109,27 @@ public struct Board: Codable, Equatable, Sendable {
         }
 
         if from.list == .three && target == .done { refill() }
+    }
+
+    /// Swaps two items in different lists: each takes the other's exact position.
+    /// An item can't be "swapped into" Done unfinished, so if `incoming` came from Done,
+    /// the item it replaces goes to the top of Next instead.
+    public mutating func swap(_ incoming: UUID, with outgoing: UUID, now: Date = Date()) {
+        guard let inLoc = location(of: incoming), let outLoc = location(of: outgoing),
+              inLoc.list != outLoc.list else { return }
+        var a = items(in: inLoc.list)[inLoc.index]
+        var b = items(in: outLoc.list)[outLoc.index]
+
+        a.completedAt = outLoc.list == .done ? (a.completedAt ?? now) : nil
+        withList(outLoc.list) { $0[outLoc.index] = a }
+
+        b.completedAt = nil
+        if inLoc.list == .done {
+            withList(.done) { _ = $0.remove(at: inLoc.index) }
+            next.insert(b, at: 0)
+        } else {
+            withList(inLoc.list) { $0[inLoc.index] = b }
+        }
     }
 
     /// Reorders within one list (drag and drop). Same arguments as SwiftUI's `onMove`.
