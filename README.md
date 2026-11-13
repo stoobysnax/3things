@@ -1,0 +1,33 @@
+# 3 Things
+
+The three things you can't forget to do today. Nothing more.
+
+- **3 Things**: today's must-dos, in order of importance. Never more than three.
+- **Next**: what's waiting. When one of your 3 Things is done, the top of Next moves into the last slot.
+- **Done**: what you finished.
+
+Drag to reorder. Drag an item onto a list in the left column to move it there, or right-click it.
+Double-click to rename.
+
+**Alarms**: hover an item and click the bell to pick a time. An alarm only rings while the item is in
+3 Things, and rings again the next day at the same time if it's still not done. An item in Next keeps
+its time and starts ringing once it moves up.
+
+⌘1, ⌘2 and ⌘3 switch between the lists.
+
+## Install (Mac)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stoobysnax/3things/main/install.sh | bash
+```
+
+It downloads, builds and installs **3 Things** into Applications. The first time, macOS may ask to
+install Apple's free Command Line Tools (not the Xcode app). Click Install, then run the command again.
+
+## Project layout
+
+- `Sources/ThreeThingsCore`: the list rules and saving. No UI, so the iPhone app can share it.
+- `Sources/ThreeThings`: the Mac app (SwiftUI).
+- `Tests/ThreeThingsCoreTests`: tests for the list rules (`swift test`).
+
+Your lists are saved in `~/Library/Application Support/3 Things/board.json`.

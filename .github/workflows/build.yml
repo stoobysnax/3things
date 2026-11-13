@@ -1,0 +1,26 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test the list rules
+        run: swift test
+
+      - name: Build the app
+        run: ./scripts/build-app.sh
+
+      - name: Zip the app
+        run: cd build && ditto -c -k --keepParent "3 Things.app" "3-Things.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 3-Things-app
+          path: build/3-Things.zip
