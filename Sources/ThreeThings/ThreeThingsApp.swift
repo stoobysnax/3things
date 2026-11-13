@@ -8,7 +8,7 @@ struct ThreeThingsApp: App {
     @AppStorage("darkMode") private var darkMode = false
 
     var body: some Scene {
-        WindowGroup("3 Things") {
+        WindowGroup("3 Things", id: "main") {
             ContentView()
                 .environmentObject(store)
                 .environment(\.theme, darkMode ? .dark : .light)
@@ -18,6 +18,17 @@ struct ThreeThingsApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 720, height: 460)
+
+        MenuBarExtra {
+            MenuBarPanel()
+                .environmentObject(store)
+                .environment(\.theme, darkMode ? .dark : .light)
+                .preferredColorScheme(darkMode ? .dark : .light)
+        } label: {
+            MenuBarLabel()
+                .environmentObject(store)
+        }
+        .menuBarExtraStyle(.window)
     }
 
     /// Keeps menus, popovers and text fields in the same look as the window.
@@ -27,6 +38,9 @@ struct ThreeThingsApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    // Closing the window keeps 3 Things in the menu bar.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         if Alarms.available {
             UNUserNotificationCenter.current().delegate = self

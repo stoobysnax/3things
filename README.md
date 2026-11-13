@@ -21,6 +21,9 @@ its time and starts ringing once it moves up.
 
 ⌘1, ⌘2 and ⌘3 switch between the lists.
 
+**Menu bar**: the circled number at the top of your screen shows how many of today's 3 Things are left.
+Click it to see them and check one off in one click. Closing the window keeps 3 Things in the menu bar.
+
 ## Install (Mac)
 
 ```bash

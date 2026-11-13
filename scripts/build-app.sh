@@ -23,6 +23,17 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/ThreeThings"
 
+# App icon: Resources/AppIcon.png (1024×1024) → AppIcon.icns
+if [[ -f Resources/AppIcon.png ]]; then
+  SET="build/AppIcon.iconset"
+  rm -rf "$SET" && mkdir -p "$SET"
+  for S in 16 32 128 256 512; do
+    sips -z $S $S Resources/AppIcon.png --out "$SET/icon_${S}x${S}.png" >/dev/null
+    sips -z $((S*2)) $((S*2)) Resources/AppIcon.png --out "$SET/icon_${S}x${S}@2x.png" >/dev/null
+  done
+  iconutil -c icns "$SET" -o "$APP/Contents/Resources/AppIcon.icns"
+fi
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -38,6 +49,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
 </dict>
 </plist>
 PLIST
