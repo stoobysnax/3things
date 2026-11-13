@@ -109,6 +109,11 @@ struct AlarmButton: View {
     @Environment(\.theme) private var theme
     @State private var open = false
     @State private var time = Date()
+    @State private var typed = ""
+    @State private var notificationsOff = false
+    @FocusState private var typing: Bool
+
+    private var parsed: AlarmTime? { AlarmParser.parse(typed) }
 
     private var ringing: Bool { item.alarm != nil && isLive }
 
@@ -143,13 +148,30 @@ struct AlarmButton: View {
     }
 
     private var editor: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Remind me at")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Remind me")
                 .font(.system(size: 13, weight: .semibold))
 
-            DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
-                .labelsHidden()
-                .datePickerStyle(.field)
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("5 min, 2 hours, 9pm…", text: $typed)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($typing)
+                    .onSubmit(setFromInput)
+                if !typed.isEmpty {
+                    Text(parsed.map { "Rings at \($0.label)" } ?? "Try \u{201C}20 min\u{201D}, \u{201C}2 hours\u{201D} or \u{201C}9:30pm\u{201D}")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Text("or at")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .datePickerStyle(.field)
+            }
 
             HStack(spacing: 6) {
                 preset("In 1 hr") { AlarmTime(date: Date().addingTimeInterval(3600)) }
@@ -164,17 +186,43 @@ struct AlarmButton: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if notificationsOff {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Notifications are off for 3 Things, so alarms only ring while the app is running.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Turn on notifications") { Alarms.openNotificationSettings() }
+                        .buttonStyle(.link)
+                        .font(.system(size: 11))
+                }
+            }
+
             HStack {
                 if item.alarm != nil {
                     Button("Remove") { set(nil) }
                 }
                 Spacer()
-                Button("Set") { set(AlarmTime(date: time)) }
+                Button("Set", action: setFromInput)
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)
-        .frame(width: 240)
+        .frame(width: 260)
+        .onAppear {
+            typed = ""
+            DispatchQueue.main.async { typing = true }
+            Alarms.checkNotificationsOff { notificationsOff = $0 }
+        }
+    }
+
+    /// Uses what was typed if there is any, otherwise the time picker.
+    private func setFromInput() {
+        if typed.trimmingCharacters(in: .whitespaces).isEmpty {
+            set(AlarmTime(date: time))
+        } else if let parsed {
+            set(parsed)
+        }
     }
 
     private func preset(_ title: String, _ make: @escaping () -> AlarmTime) -> some View {

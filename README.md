@@ -18,9 +18,14 @@ the new task takes that exact position and the old one goes where the new one ca
 
 The moon button at the bottom left switches to dark mode.
 
-**Alarms**: hover an item and click the bell to pick a time. An alarm only rings while the item is in
+**Alarms**: hover an item and click the bell. Type how long or when ("5 min", "4 hours", "1h 30m",
+"9pm", "noon") and press Return, or pick a time. An alarm only rings while the item is in
 3 Things, and rings again the next day at the same time if it's still not done. An item in Next keeps
 its time and starts ringing once it moves up.
+
+When an alarm goes off, 3 Things plays a sound and shows a small window on top with **Done** and
+**Dismiss**. That works while the app is running (it stays in the menu bar when you close the window).
+If 3 Things isn't running, a macOS notification is used instead, so allow notifications when asked.
 
 ⌘1, ⌘2 and ⌘3 switch between the lists.
 

@@ -46,12 +46,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
-    // Show the alarm even when 3 Things is the app in front.
+    // While the app is running it rings alarms itself (AlarmRinger), so the system
+    // notification just goes quietly into Notification Center instead of doubling up.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound, .list])
+        completionHandler([.list])
     }
 }

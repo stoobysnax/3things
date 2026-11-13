@@ -13,6 +13,7 @@ final class BoardStore: ObservableObject {
         self.file = file
         self.board = file.load()
         Alarms.sync(board)
+        AlarmRinger.shared.start(with: self)
     }
 
     /// Moves an item to a list. `index` nil means the end (top for Done).

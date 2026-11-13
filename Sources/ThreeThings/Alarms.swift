@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import ThreeThingsCore
 import UserNotifications
@@ -34,11 +35,29 @@ enum Alarms {
             let stale = pending.map(\.identifier).filter { $0.hasPrefix(prefix) && !keep.contains($0) }
             center.removePendingNotificationRequests(withIdentifiers: stale)
             guard !wanted.isEmpty else { return }
-            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                if let error { NSLog("3 Things: notifications not allowed: \(error.localizedDescription)") }
                 guard granted else { return }
                 // Adding with the same identifier replaces the old one (e.g. after a rename).
                 wanted.forEach { center.add($0) }
             }
+        }
+    }
+}
+
+extension Alarms {
+    /// Calls back with true if the user has turned notifications off for 3 Things.
+    static func checkNotificationsOff(_ done: @escaping (Bool) -> Void) {
+        guard available else { done(false); return }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let off = settings.authorizationStatus == .denied
+            DispatchQueue.main.async { done(off) }
+        }
+    }
+
+    static func openNotificationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+            NSWorkspace.shared.open(url)
         }
     }
 }
