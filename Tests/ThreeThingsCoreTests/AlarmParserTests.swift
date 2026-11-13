@@ -84,4 +84,41 @@ final class AlarmParserTests: XCTestCase {
         XCTAssertNil(when("mon 5 min"))
         XCTAssertNil(when("someday"))
     }
+
+    // MARK: Dates
+
+    private func on(_ y: Int, _ m: Int, _ d: Int) -> Day { Day(year: y, month: m, day: d) }
+
+    func testWrittenDates() {
+        XCTAssertEqual(when("November 25"), .init(day: on(2026, 11, 25), time: nil))
+        XCTAssertEqual(when("nov 25"), .init(day: on(2026, 11, 25), time: nil))
+        XCTAssertEqual(when("Nov. 25th"), .init(day: on(2026, 11, 25), time: nil))
+        XCTAssertEqual(when("25 november"), .init(day: on(2026, 11, 25), time: nil))
+        XCTAssertEqual(when("the 25th of nov"), .init(day: on(2026, 11, 25), time: nil))
+        XCTAssertEqual(when("11/25"), .init(day: on(2026, 11, 25), time: nil))
+        XCTAssertEqual(when("2026-11-25"), .init(day: on(2026, 11, 25), time: nil))
+        XCTAssertEqual(when("jan 5"), .init(day: on(2027, 1, 5), time: nil)) // passed this year
+        XCTAssertEqual(when("dec 25, 2027"), .init(day: on(2027, 12, 25), time: nil))
+        XCTAssertNil(when("feb 30"))
+    }
+
+    func testRelativeDays() {
+        XCTAssertEqual(when("1 week"), .init(day: plus(7), time: nil))
+        XCTAssertEqual(when("1 weeks"), .init(day: plus(7), time: nil))
+        XCTAssertEqual(when("in 2 weeks"), .init(day: plus(14), time: nil))
+        XCTAssertEqual(when("a week"), .init(day: plus(7), time: nil))
+        XCTAssertEqual(when("10 days"), .init(day: plus(10), time: nil))
+        XCTAssertEqual(when("next month"), .init(day: on(2026, 12, 13), time: nil))
+        XCTAssertEqual(when("this weekend"), .init(day: plus(1), time: nil)) // Saturday
+        XCTAssertEqual(when("the 25th"), .init(day: on(2026, 11, 25), time: nil))
+        XCTAssertEqual(when("the 2nd"), .init(day: on(2026, 12, 2), time: nil)) // passed this month
+    }
+
+    func testDatesWithTimes() {
+        XCTAssertEqual(when("nov 25 3pm"), .init(day: on(2026, 11, 25), time: at(15, 0)))
+        XCTAssertEqual(when("November 25 at 9:30am"), .init(day: on(2026, 11, 25), time: at(9, 30)))
+        XCTAssertEqual(when("3pm nov 25"), .init(day: on(2026, 11, 25), time: at(15, 0)))
+        XCTAssertEqual(when("1 week 9am"), .init(day: plus(7), time: at(9, 0)))
+        XCTAssertEqual(when("11/25 noon"), .init(day: on(2026, 11, 25), time: at(12, 0)))
+    }
 }

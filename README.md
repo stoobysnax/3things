@@ -33,6 +33,12 @@ you drop it next to. Drag to-dos out of Things (or any text) to create tasks. Do
 scheduled task rings on its day. While the app is running it rings by itself (it stays in the menu
 bar when you close the window); otherwise a macOS notification is used, so allow notifications.
 
+**Keys**: ⌘N new task · ⌘S schedule (while typing a new task: add it and open its scheduler; Return
+saves and closes) · ⌘Z undo anything, ⇧⌘Z redo · ⌘1, ⌘2, ⌘3 switch lists.
+
+The scheduler reads things like "tomorrow", "mon 9am", "November 25", "25 nov", "11/25", "the 25th",
+"1 week", "in 10 days", "next month", "this weekend", "nov 25 3pm", "5 min", "9pm".
+
 ⌘1, ⌘2 and ⌘3 switch between the lists. The moon button at the bottom left switches to dark mode.
 
 **Menu bar**: the little 3 icon at the top of your screen shows today's 3; check one off in one click.

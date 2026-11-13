@@ -47,12 +47,9 @@ public enum AlarmParser {
         let today = Day(now, calendar: calendar)
         var day: Day?
 
-        if let groups = captures(inDaysPattern, text), let n = groups[0].flatMap(Int.init) {
-            day = today.adding(days: n, calendar: calendar)
-            text = groups[1] ?? ""
-        } else if text.hasPrefix("next week") {
-            day = upcoming(weekday: 2, after: today, calendar: calendar) // Monday
-            text = String(text.dropFirst("next week".count))
+        if let leading = leadingDate(text, today: today, calendar: calendar) {
+            day = leading.0
+            text = leading.1
         } else {
             var words = text.split(separator: " ").map(String.init)
             if words.first == "next", words.count > 1, weekday(words[1]) != nil { words.removeFirst() }
@@ -62,6 +59,10 @@ public enum AlarmParser {
             } else if words.count > 1, let last = words.last, let d = dayWord(last, today: today, calendar: calendar) {
                 day = d
                 words.removeLast()
+            } else if words.count > 1, let tail = trailingDate(words, today: today, calendar: calendar) {
+                // "3pm nov 25"
+                day = tail.day
+                words = tail.rest
             }
             text = words.joined(separator: " ")
         }
@@ -86,7 +87,99 @@ public enum AlarmParser {
 
     // MARK: - Days
 
-    private static let inDaysPattern = try! NSRegularExpression(pattern: #"^in (\d+) days?\b\s*(?:at\s+)?(.*)$"#)
+    private static let months = "(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?"
+    private static let numberWords = ["a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                                      "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10]
+
+    private static let isoPattern = try! NSRegularExpression(pattern: #"^(\d{4})-(\d{1,2})-(\d{1,2})\b(.*)$"#)
+    private static let slashPattern = try! NSRegularExpression(pattern: #"^(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b(.*)$"#)
+    private static let monthDayPattern = try! NSRegularExpression(pattern:
+        "^" + months + #"\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b(.*)$"#)
+    private static let dayMonthPattern = try! NSRegularExpression(pattern:
+        #"^(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?"# + months + #"(?:,?\s+(\d{4}))?\b(.*)$"#)
+    private static let ordinalPattern = try! NSRegularExpression(pattern: #"^(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b(.*)$"#)
+    private static let relativePattern = try! NSRegularExpression(pattern:
+        #"^(?:in\s+)?(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s*(days?|d|weeks?|wks?|w|months?)\b(.*)$"#)
+
+    /// A date at the start of the text, and what's left after it.
+    /// "nov 25", "25 november", "11/25", "2026-11-25", "the 25th", "1 week", "in 10 days",
+    /// "next week", "next month", "this weekend".
+    private static func leadingDate(_ text: String, today: Day, calendar: Calendar) -> (Day, String)? {
+        let monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+        func month(_ s: String?) -> Int? { s.flatMap { m in monthNames.firstIndex(of: String(m.prefix(3))) }.map { $0 + 1 } }
+        func done(_ day: Day?, _ rest: String?) -> (Day, String)? { day.map { ($0, rest ?? "") } }
+
+        if let g = captures(isoPattern, text) {
+            return done(makeDay(Int(g[0]!), Int(g[1]!), Int(g[2]!), today: today, calendar: calendar), g[3])
+        }
+        if let g = captures(slashPattern, text) {
+            return done(makeDay(g[2].flatMap(Int.init), Int(g[0]!), Int(g[1]!), today: today, calendar: calendar), g[3])
+        }
+        if let g = captures(monthDayPattern, text), let m = month(g[0]) {
+            return done(makeDay(g[2].flatMap(Int.init), m, Int(g[1]!), today: today, calendar: calendar), g[3])
+        }
+        if let g = captures(dayMonthPattern, text), let m = month(g[1]) {
+            return done(makeDay(g[2].flatMap(Int.init), m, Int(g[0]!), today: today, calendar: calendar), g[3])
+        }
+        if let g = captures(ordinalPattern, text), let d = Int(g[0]!) {
+            // "the 25th": this month if it hasn't passed, otherwise next month.
+            var found = makeDay(today.year, today.month, d, today: today, calendar: calendar, rollYear: false)
+            if found.map({ $0 < today }) ?? true {
+                let nextMonth = today.month == 12 ? (today.year + 1, 1) : (today.year, today.month + 1)
+                found = makeDay(nextMonth.0, nextMonth.1, d, today: today, calendar: calendar, rollYear: false)
+            }
+            return done(found, g[1])
+        }
+        if let g = captures(relativePattern, text), let unit = g[1] {
+            let n = Int(g[0]!) ?? numberWords[g[0]!] ?? 1
+            let date = today.date(calendar: calendar)
+            let target: Date?
+            if unit.hasPrefix("m") {
+                target = calendar.date(byAdding: .month, value: n, to: date)
+            } else if unit.hasPrefix("w") {
+                target = calendar.date(byAdding: .day, value: 7 * n, to: date)
+            } else {
+                target = calendar.date(byAdding: .day, value: n, to: date)
+            }
+            return done(target.map { Day($0, calendar: calendar) }, g[2])
+        }
+        for (phrase, make) in [
+            ("next week", { upcoming(weekday: 2, after: today, calendar: calendar) }),
+            ("next month", { today.adding(months: 1, calendar: calendar) }),
+            ("this weekend", { upcoming(weekday: 7, after: today, calendar: calendar) }),
+            ("weekend", { upcoming(weekday: 7, after: today, calendar: calendar) }),
+        ] as [(String, () -> Day)] where text.hasPrefix(phrase) {
+            return (make(), String(text.dropFirst(phrase.count)))
+        }
+        return nil
+    }
+
+    /// A date written at the end instead: "3pm nov 25", "9am 11/25".
+    private static func trailingDate(_ words: [String], today: Day, calendar: Calendar) -> (day: Day, rest: [String])? {
+        for split in 1..<words.count {
+            let tail = words[split...].joined(separator: " ")
+            if let found = leadingDate(tail, today: today, calendar: calendar),
+               found.1.trimmingCharacters(in: .whitespaces).isEmpty {
+                return (found.0, Array(words[..<split]))
+            }
+        }
+        return nil
+    }
+
+    /// A real calendar day, or nil ("feb 30"). With no year, a date that has passed means next year.
+    private static func makeDay(_ year: Int?, _ month: Int?, _ day: Int?, today: Day, calendar: Calendar,
+                                rollYear: Bool = true) -> Day? {
+        guard let month, let day, (1...12).contains(month), (1...31).contains(day) else { return nil }
+        var y = year ?? today.year
+        if y < 100 { y += 2000 }
+        func valid(_ y: Int) -> Day? {
+            let d = Day(year: y, month: month, day: day)
+            return Day(d.date(calendar: calendar), calendar: calendar) == d ? d : nil
+        }
+        guard var found = valid(y) else { return nil }
+        if year == nil, rollYear, found < today, let next = valid(y + 1) { found = next }
+        return found
+    }
 
     private static func dayWord(_ word: String, today: Day, calendar: Calendar) -> Day? {
         switch word {

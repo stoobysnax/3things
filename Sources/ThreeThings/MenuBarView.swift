@@ -46,7 +46,7 @@ struct MenuBarPanel: View {
                     MenuBarRow(item: item)
                 }
                 if store.board.hasRoomToday {
-                    AddRow(list: .three, placeholder: "Add a thing")
+                    AddRow(list: .three, placeholder: "Add a thing", takesNewTaskShortcut: false)
                 }
             }
             .padding(.horizontal, 6)

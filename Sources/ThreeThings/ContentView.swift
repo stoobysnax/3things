@@ -32,6 +32,18 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             store.rollOverIfNeeded()
         }
+        .onChange(of: store.focusNewTask) { asked in
+            // ⌘N: type in the list on screen, or in Next when there's no room here.
+            guard asked else { return }
+            if selection == .done || (selection == .three && !store.board.hasRoomToday) {
+                selection = .next
+            }
+        }
+        .onChange(of: store.scheduleRequest) { id in
+            // ⌘S: show the list the task is in, so its scheduler can open.
+            guard let id, let list = store.board.location(of: id)?.list else { return }
+            selection = list == .missed ? .three : list
+        }
     }
 
     /// ⌘1 3 Today, ⌘2 Next, ⌘3 Done.
@@ -346,6 +358,8 @@ struct SectionHeader: View {
 struct AddRow: View {
     let list: ListKind
     let placeholder: String
+    /// Whether ⌘N focuses this field (the main window's, not the menu bar panel's).
+    var takesNewTaskShortcut = true
 
     @EnvironmentObject private var store: BoardStore
     @Environment(\.theme) private var theme
@@ -363,15 +377,39 @@ struct AddRow: View {
                 .font(.system(size: 15))
                 .foregroundStyle(theme.text)
                 .focused($focused)
-                .onSubmit {
-                    let title = text
-                    store.update { _ = $0.add(title, to: list) }
-                    text = ""
-                    focused = true
+                .onSubmit { commit(schedule: false) }
+                .focusedValue(\.commitAndSchedule) {
+                    if text.trimmingCharacters(in: .whitespaces).isEmpty {
+                        store.requestSchedule()
+                    } else {
+                        commit(schedule: true)
+                    }
                 }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .onAppear { takeFocusIfAsked() }
+        .onChange(of: store.focusNewTask) { _ in takeFocusIfAsked() }
+    }
+
+    private func commit(schedule: Bool) {
+        let title = text
+        guard let id = store.addTask(title, to: list) else { return }
+        text = ""
+        if schedule {
+            focused = false
+            store.requestSchedule(id)
+        } else {
+            focused = true
+        }
+    }
+
+    private func takeFocusIfAsked() {
+        guard takesNewTaskShortcut, store.focusNewTask else { return }
+        DispatchQueue.main.async {
+            focused = true
+            store.focusNewTask = false
+        }
     }
 }
 

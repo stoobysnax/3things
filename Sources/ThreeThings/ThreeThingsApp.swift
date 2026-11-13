@@ -18,6 +18,7 @@ struct ThreeThingsApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 720, height: 460)
+        .commands { AppCommands(store: store) }
 
         MenuBarExtra {
             MenuBarPanel()

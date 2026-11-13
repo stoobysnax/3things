@@ -9,7 +9,15 @@ final class BoardStore: ObservableObject {
     @Published private(set) var today: Day
     /// A question waiting for the user (3 Today full, a day full, or a task just bumped).
     @Published private(set) var prompt: Prompt?
+    /// ⌘N: focus the "add" field of the list on screen.
+    @Published var focusNewTask = false
+    /// ⌘S: open the scheduler for this task.
+    @Published var scheduleRequest: UUID?
+    /// The task added most recently (⌘S schedules it when no new task is being typed).
+    private(set) var lastAdded: UUID?
     private let file: BoardFile
+    private var undoStack: [Board] = []
+    private var redoStack: [Board] = []
 
     enum Prompt: Equatable {
         /// Something is going into a full 3 Today: swap with one, schedule it for another day, or cancel.
@@ -34,7 +42,30 @@ final class BoardStore: ObservableObject {
     func rollOverIfNeeded() {
         let now = Day.today()
         if now != today { today = now }
-        update { $0.rollOver(to: now) }
+        let before = board
+        update(undoable: false) { $0.rollOver(to: now) }
+        // Undoing across a day change would bring yesterday back; start fresh instead.
+        if board != before {
+            undoStack.removeAll()
+            redoStack.removeAll()
+        }
+    }
+
+    // MARK: Adding
+
+    /// Adds a typed task and remembers it for ⌘S.
+    @discardableResult
+    func addTask(_ title: String, to list: ListKind) -> UUID? {
+        var added: UUID?
+        update { added = $0.add(title, to: list)?.id }
+        if let added { lastAdded = added }
+        return added
+    }
+
+    /// ⌘S: open the scheduler for `id`, or for the task added last.
+    func requestSchedule(_ id: UUID? = nil) {
+        guard let id = id ?? lastAdded, board.location(of: id) != nil else { return }
+        scheduleRequest = id
     }
 
     // MARK: Moving
@@ -150,10 +181,40 @@ final class BoardStore: ObservableObject {
 
     // MARK: Saving
 
-    func update(_ change: (inout Board) -> Void) {
+    /// Every change goes through here: saved, alarms updated, and (unless it's the day changing)
+    /// remembered for ⌘Z.
+    func update(undoable: Bool = true, _ change: (inout Board) -> Void) {
         var changed = board
         change(&changed)
         guard changed != board else { return }
+        if undoable {
+            undoStack.append(board)
+            if undoStack.count > 200 { undoStack.removeFirst() }
+            redoStack.removeAll()
+        }
+        apply(changed)
+    }
+
+    // MARK: Undo
+
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
+
+    func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(board)
+        prompt = nil
+        apply(previous)
+    }
+
+    func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(board)
+        prompt = nil
+        apply(next)
+    }
+
+    private func apply(_ changed: Board) {
         board = changed
         do {
             try file.save(changed)

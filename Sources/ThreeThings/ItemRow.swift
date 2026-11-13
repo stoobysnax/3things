@@ -219,6 +219,17 @@ struct WhenButton: View {
             WhenEditor(item: item, list: list, close: { open = false })
                 .environmentObject(store)
         }
+        .onAppear(perform: openIfAsked)
+        .onChange(of: store.scheduleRequest) { _ in openIfAsked() }
+    }
+
+    /// ⌘S asked for this task's scheduler.
+    private func openIfAsked() {
+        guard store.scheduleRequest == item.id else { return }
+        DispatchQueue.main.async {
+            open = true
+            store.scheduleRequest = nil
+        }
     }
 }
 

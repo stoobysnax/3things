@@ -51,6 +51,10 @@ public struct Day: Codable, Hashable, Comparable, Sendable, CustomStringConverti
         Day(calendar.date(byAdding: .day, value: days, to: date(calendar: calendar)) ?? Date(), calendar: calendar)
     }
 
+    public func adding(months: Int, calendar: Calendar = .current) -> Day {
+        Day(calendar.date(byAdding: .month, value: months, to: date(calendar: calendar)) ?? Date(), calendar: calendar)
+    }
+
     /// Whole days from this day to `other` (negative if `other` is earlier).
     public func days(until other: Day, calendar: Calendar = .current) -> Int {
         calendar.dateComponents([.day], from: date(calendar: calendar), to: other.date(calendar: calendar)).day ?? 0
