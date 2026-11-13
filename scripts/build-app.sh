@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds "3 Things.app" into ./build
+# Builds "3 Today.app" into ./build
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -18,7 +18,7 @@ else
 fi
 VERSION="${VERSION:-1.0}"
 
-APP="build/3 Things.app"
+APP="build/3 Today.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/ThreeThings"
@@ -42,8 +42,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>3 Things</string>
-    <key>CFBundleDisplayName</key><string>3 Things</string>
+    <key>CFBundleName</key><string>3 Today</string>
+    <key>CFBundleDisplayName</key><string>3 Today</string>
     <key>CFBundleIdentifier</key><string>com.stoobysnax.ThreeThings</string>
     <key>CFBundleExecutable</key><string>ThreeThings</string>
     <key>CFBundlePackageType</key><string>APPL</string>

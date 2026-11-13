@@ -3,31 +3,37 @@ import Foundation
 import ThreeThingsCore
 import UserNotifications
 
-/// Schedules a daily notification for every item in 3 Things that has an alarm,
-/// and removes the rest. Items in Next keep their time but don't ring.
+/// Keeps macOS notifications in step with the board, for when 3 Today isn't running:
+/// a daily one for each 3 Today item with an alarm, and a one-off for each scheduled item with a
+/// time, on its day. (While the app runs, AlarmRinger rings them itself.)
 enum Alarms {
     private static let prefix = "thing-"
 
     /// Notifications need a real app bundle (not `swift run`).
     static var available: Bool { Bundle.main.bundleIdentifier != nil }
 
-    static func sync(_ board: Board) {
+    static func sync(_ board: Board, today: Day) {
         guard available else { return }
         let center = UNUserNotificationCenter.current()
 
-        let wanted: [UNNotificationRequest] = board.liveAlarms.compactMap { item in
-            guard let alarm = item.alarm else { return nil }
+        func request(_ item: Item, _ when: DateComponents, repeats: Bool) -> UNNotificationRequest {
             let content = UNMutableNotificationContent()
             content.title = item.title
-            content.body = "One of your 3 Things"
+            content.body = "One of your 3 Today"
             content.sound = .default
-
-            var when = DateComponents()
-            when.hour = alarm.hour
-            when.minute = alarm.minute
-            // Repeats: rings again tomorrow at the same time if it's still not done.
-            let trigger = UNCalendarNotificationTrigger(dateMatching: when, repeats: true)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: when, repeats: repeats)
             return UNNotificationRequest(identifier: prefix + item.id.uuidString, content: content, trigger: trigger)
+        }
+
+        var wanted: [UNNotificationRequest] = board.liveAlarms.compactMap { item in
+            guard let alarm = item.alarm else { return nil }
+            // Repeats: rings again tomorrow at the same time if it's still not done.
+            return request(item, DateComponents(hour: alarm.hour, minute: alarm.minute), repeats: true)
+        }
+        wanted += board.scheduledAlarms.compactMap { item in
+            guard let alarm = item.alarm, let day = item.day, day > today else { return nil }
+            let when = DateComponents(year: day.year, month: day.month, day: day.day, hour: alarm.hour, minute: alarm.minute)
+            return request(item, when, repeats: false)
         }
         let keep = Set(wanted.map(\.identifier))
 
@@ -36,7 +42,7 @@ enum Alarms {
             center.removePendingNotificationRequests(withIdentifiers: stale)
             guard !wanted.isEmpty else { return }
             center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-                if let error { NSLog("3 Things: notifications not allowed: \(error.localizedDescription)") }
+                if let error { NSLog("3 Today: notifications not allowed: \(error.localizedDescription)") }
                 guard granted else { return }
                 // Adding with the same identifier replaces the old one (e.g. after a rename).
                 wanted.forEach { center.add($0) }
@@ -46,7 +52,7 @@ enum Alarms {
 }
 
 extension Alarms {
-    /// Calls back with true if the user has turned notifications off for 3 Things.
+    /// Calls back with true if the user has turned notifications off for 3 Today.
     static func checkNotificationsOff(_ done: @escaping (Bool) -> Void) {
         guard available else { done(false); return }
         UNUserNotificationCenter.current().getNotificationSettings { settings in

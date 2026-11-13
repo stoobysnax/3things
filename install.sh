@@ -1,5 +1,5 @@
 #!/bin/bash
-# One-line installer for 3 Things.
+# One-line installer for 3 Today.
 #   curl -fsSL https://raw.githubusercontent.com/stoobysnax/3things/main/install.sh | bash
 set -euo pipefail
 
@@ -19,10 +19,10 @@ cd "$TMP"
 
 echo "Building (takes a minute)…"
 ./scripts/build-app.sh 2>&1 | grep -iE "error|warning: unable" || true
-[[ -d "build/3 Things.app" ]] || { echo "Build failed. Copy the text above and send it to Claude."; exit 1; }
+[[ -d "build/3 Today.app" ]] || { echo "Build failed. Copy the text above and send it to Claude."; exit 1; }
 
 pkill -x ThreeThings 2>/dev/null || true
-rm -rf "/Applications/3 Things.app"
-cp -R "build/3 Things.app" /Applications/
-open "/Applications/3 Things.app"
-echo "Installed 3 Things. The first time you set an alarm, click Allow when macOS asks about notifications."
+rm -rf "/Applications/3 Things.app" "/Applications/3 Today.app"   # 3 Things is the old name
+cp -R "build/3 Today.app" /Applications/
+open "/Applications/3 Today.app"
+echo "Installed 3 Today. The first time you set an alarm, click Allow when macOS asks about notifications."

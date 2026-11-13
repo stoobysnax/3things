@@ -4,7 +4,7 @@ import ThreeThingsCore
 
 /// Rings alarms from inside the app: plays a sound and shows a small window on top of everything,
 /// so an alarm can't be missed even if macOS notifications are off or the banner slips by.
-/// System notifications (Alarms) still cover the times 3 Things isn't running.
+/// System notifications (Alarms) still cover the times 3 Today isn't running.
 @MainActor
 final class AlarmRinger: ObservableObject {
     static let shared = AlarmRinger()
@@ -25,7 +25,7 @@ final class AlarmRinger: ObservableObject {
         // Keep macOS from napping the app, so alarms ring on the minute.
         activity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiatedAllowingIdleSystemSleep],
-            reason: "3 Things alarms ring on time"
+            reason: "3 Today alarms ring on time"
         )
         let timer = Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.check() }
@@ -34,10 +34,11 @@ final class AlarmRinger: ObservableObject {
         self.timer = timer
     }
 
-    /// Rings every 3 Things alarm whose time passed since the last check
+    /// Rings every 3 Today alarm whose time passed since the last check
     /// (so one due while the Mac was asleep rings when it wakes, the same day).
     func check(now: Date = Date()) {
         guard let store else { return }
+        store.rollOverIfNeeded()
         defer { lastCheck = now }
         let calendar = Calendar.current
         var newlyDue = false
@@ -52,7 +53,7 @@ final class AlarmRinger: ObservableObject {
             }
         }
 
-        // Anything finished or moved out of 3 Things stops ringing.
+        // Anything finished or moved out of 3 Today stops ringing.
         let before = ringing.count
         ringing.removeAll { id in !store.board.three.contains { $0.id == id } }
 
@@ -123,7 +124,7 @@ struct RingingView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 6) {
                 Image(systemName: "bell.fill")
-                Text("3 Things")
+                Text("3 Today")
             }
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(theme.secondary)

@@ -10,6 +10,7 @@ struct ItemRow: View {
     @State private var hovering = false
     @State private var editing = false
     @State private var draft = ""
+    @State private var whenOpen = false
     @FocusState private var fieldFocused: Bool
 
     private var isDone: Bool { list == .done }
@@ -49,7 +50,7 @@ struct ItemRow: View {
             }
 
             if !isDone {
-                AlarmButton(item: item, isLive: list == .three, rowHovering: hovering)
+                WhenButton(item: item, list: list, rowHovering: hovering, open: $whenOpen)
             }
         }
         .padding(.horizontal, 12)
@@ -62,11 +63,18 @@ struct ItemRow: View {
         .onHover { hovering = $0 }
         .contextMenu {
             Button("Rename", action: startEdit)
+            if !isDone {
+                Button("Schedule…") { whenOpen = true }
+            }
             Divider()
-            ForEach(ListKind.allCases.filter { $0 != list }) { target in
-                Button("Move to \(target.title)") {
-                    store.send(item.id, to: target)
-                }
+            if list != .three {
+                Button("Move to 3 Today") { store.send(item.id, to: .three) }
+            }
+            if list != .next || item.day != nil {
+                Button(list == .next ? "Unschedule" : "Move to Next") { store.moveToNext(item.id) }
+            }
+            if list != .done {
+                Button("Move to Done") { store.send(item.id, to: .done) }
             }
             Divider()
             Button("Delete", role: .destructive) {
@@ -97,98 +105,194 @@ struct ItemRow: View {
     }
 }
 
-/// The one-button alarm: a bell that opens a small time picker.
-/// Hidden until you hover the row, unless an alarm is set.
-struct AlarmButton: View {
+// MARK: - Missed
+
+/// A task left unfinished when its day ended. Greyed, on a soft tint, until you decide:
+/// one click asks "Keep in today" or "Move to Next".
+struct MissedRow: View {
     let item: Item
-    /// True in 3 Things. In Next the time is kept but doesn't ring.
-    let isLive: Bool
-    let rowHovering: Bool
 
     @EnvironmentObject private var store: BoardStore
     @Environment(\.theme) private var theme
+    @State private var hovering = false
     @State private var open = false
-    @State private var time = Date()
-    @State private var typed = ""
-    @State private var notificationsOff = false
-    @FocusState private var typing: Bool
-
-    private var parsed: AlarmTime? { AlarmParser.parse(typed) }
-
-    private var ringing: Bool { item.alarm != nil && isLive }
 
     var body: some View {
         Button {
-            time = (item.alarm ?? .suggested).date
+            open = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "circle")
+                    .font(.system(size: 17, weight: .light))
+                    .foregroundStyle(theme.faint)
+                    .frame(width: 18)
+                Text(item.title)
+                    .font(.system(size: 15))
+                    .foregroundStyle(theme.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let day = item.missedOn {
+                    Text(day.missedLabel(today: store.today))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(theme.missedLabel)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(theme.missedFill.opacity(hovering ? 1 : 0.75))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .padding(.vertical, 2)
+        .onHover { hovering = $0 }
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(item.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
+                HStack(spacing: 8) {
+                    Button("Keep in today") {
+                        open = false
+                        store.keepInToday(item.id)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    Button("Move to Next") {
+                        open = false
+                        store.moveToNext(item.id)
+                    }
+                }
+            }
+            .padding(14)
+        }
+        .contextMenu {
+            Button("Keep in today") { store.keepInToday(item.id) }
+            Button("Move to Next") { store.moveToNext(item.id) }
+            Divider()
+            Button("Mark as done") { store.update { $0.complete(item.id) } }
+            Button("Delete", role: .destructive) { store.update { $0.delete(item.id) } }
+        }
+    }
+}
+
+// MARK: - When
+
+/// The one "when" button: pick a day (optional) and a time (optional), or type it.
+/// Hidden until you hover the row, unless something is set.
+struct WhenButton: View {
+    let item: Item
+    let list: ListKind
+    let rowHovering: Bool
+    @Binding var open: Bool
+
+    @EnvironmentObject private var store: BoardStore
+    @Environment(\.theme) private var theme
+
+    private var label: String? { item.whenLabel(today: store.today, inToday: list == .three) }
+    private var ringing: Bool { item.alarm != nil && list == .three }
+
+    var body: some View {
+        Button {
             open = true
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: ringing ? "bell.fill" : "bell")
-                if let alarm = item.alarm {
-                    Text(alarm.label).monospacedDigit()
+                Image(systemName: item.alarm != nil ? (ringing ? "bell.fill" : "bell") : "calendar")
+                if let label {
+                    Text(label).monospacedDigit()
                 }
             }
             .font(.system(size: 12))
             .foregroundStyle(ringing ? theme.text.opacity(0.85) : theme.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Capsule().fill(ringing ? theme.fill : .clear))
+            .background(Capsule().fill(label != nil ? theme.fill : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .opacity(item.alarm != nil || rowHovering || open ? 1 : 0)
-        .help(helpText)
-        .popover(isPresented: $open, arrowEdge: .bottom) { editor }
+        .opacity(label != nil || rowHovering || open ? 1 : 0)
+        .help(label == nil ? "Schedule or set an alarm" : "Change when")
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            WhenEditor(item: item, list: list, close: { open = false })
+                .environmentObject(store)
+        }
+    }
+}
+
+struct WhenEditor: View {
+    let item: Item
+    let list: ListKind
+    let close: () -> Void
+
+    @EnvironmentObject private var store: BoardStore
+    @State private var typed = ""
+    /// nil = no date (Unscheduled).
+    @State private var day: Day?
+    @State private var otherDate = Date()
+    @State private var useTime = false
+    @State private var time = Date()
+    @State private var notificationsOff = false
+    @FocusState private var typing: Bool
+
+    private var parsed: AlarmParser.When? { AlarmParser.parseWhen(typed) }
+    private var today: Day { store.today }
+
+    /// The day and time that "Set" would use.
+    private var result: (day: Day?, time: AlarmTime?) {
+        let chosenTime = useTime ? AlarmTime(date: time) : nil
+        guard let parsed else { return (day, chosenTime) }
+        return (parsed.day ?? day, parsed.time ?? chosenTime)
     }
 
-    private var helpText: String {
-        guard let alarm = item.alarm else { return "Set an alarm" }
-        return isLive ? "Rings at \(alarm.label)" : "Rings at \(alarm.label) once this is in 3 Things"
-    }
-
-    private var editor: some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Remind me")
+            Text("When")
                 .font(.system(size: 13, weight: .semibold))
 
             VStack(alignment: .leading, spacing: 6) {
-                TextField("5 min, 2 hours, 9pm…", text: $typed)
+                TextField("tomorrow 9am, mon, 5 min, 9pm…", text: $typed)
                     .textFieldStyle(.roundedBorder)
                     .focused($typing)
-                    .onSubmit(setFromInput)
+                    .onSubmit(apply)
                 if !typed.isEmpty {
-                    Text(parsed.map { "Rings at \($0.label)" } ?? "Try \u{201C}20 min\u{201D}, \u{201C}2 hours\u{201D} or \u{201C}9:30pm\u{201D}")
+                    Text(preview)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
             }
 
+            HStack(spacing: 6) {
+                dayChip("Today", today)
+                dayChip("Tomorrow", today.adding(days: 1))
+                dayChip("No date", nil)
+            }
+
             HStack(spacing: 8) {
-                Text("or at")
+                Text("Other day")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                DatePicker("Day", selection: $otherDate, in: Date()..., displayedComponents: .date)
+                    .labelsHidden()
+                    .datePickerStyle(.field)
+                    .onChange(of: otherDate) { day = Day($0) }
+            }
+
+            HStack(spacing: 8) {
+                Toggle("Remind me at", isOn: $useTime)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: 12))
                 DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.field)
-            }
-
-            HStack(spacing: 6) {
-                preset("In 1 hr") { AlarmTime(date: Date().addingTimeInterval(3600)) }
-                preset("Noon") { AlarmTime(hour: 12, minute: 0) }
-                preset("5 PM") { AlarmTime(hour: 17, minute: 0) }
-            }
-
-            if !isLive {
-                Text("Rings once this moves into 3 Things.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .disabled(!useTime)
             }
 
             if notificationsOff {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Notifications are off for 3 Things, so alarms only ring while the app is running.")
+                    Text("Notifications are off for 3 Today, so alarms only ring while the app is running.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -199,40 +303,51 @@ struct AlarmButton: View {
             }
 
             HStack {
-                if item.alarm != nil {
-                    Button("Remove") { set(nil) }
-                }
                 Spacer()
-                Button("Set", action: setFromInput)
+                Button("Set", action: apply)
                     .keyboardShortcut(.defaultAction)
+                    .disabled(!typed.isEmpty && parsed == nil)
             }
         }
         .padding(16)
-        .frame(width: 260)
+        .frame(width: 290)
         .onAppear {
-            typed = ""
+            day = list == .three ? today : item.day
+            if let d = item.day { otherDate = d.date() }
+            useTime = item.alarm != nil
+            time = (item.alarm ?? .suggested).date
             DispatchQueue.main.async { typing = true }
             Alarms.checkNotificationsOff { notificationsOff = $0 }
         }
     }
 
-    /// Uses what was typed if there is any, otherwise the time picker.
-    private func setFromInput() {
-        if typed.trimmingCharacters(in: .whitespaces).isEmpty {
-            set(AlarmTime(date: time))
-        } else if let parsed {
-            set(parsed)
+    private var preview: String {
+        guard parsed != nil else { return "Try \u{201C}tomorrow 9am\u{201D}, \u{201C}fri\u{201D}, \u{201C}20 min\u{201D} or \u{201C}9:30pm\u{201D}" }
+        let r = result
+        let dayText = r.day.map { $0 == today ? "Today" : $0.longLabel } ?? "No date"
+        return r.time.map { "\(dayText) at \($0.label)" } ?? dayText
+    }
+
+    private func dayChip(_ title: String, _ value: Day?) -> some View {
+        let selected = day == value
+        return Button { day = value } label: {
+            Text(title)
+                .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.primary.opacity(selected ? 0.14 : 0.05)))
+                .contentShape(Capsule())
         }
+        .buttonStyle(.plain)
+        .focusable(false)
     }
 
-    private func preset(_ title: String, _ make: @escaping () -> AlarmTime) -> some View {
-        Button(title) { set(make()) }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-    }
-
-    private func set(_ alarm: AlarmTime?) {
-        store.update { $0.setAlarm(alarm, for: item.id) }
-        open = false
+    private func apply() {
+        if !typed.isEmpty && parsed == nil { return }
+        let r = result
+        let id = item.id
+        close()
+        store.update { $0.setAlarm(r.time, for: id) }
+        store.schedule(id, on: r.day)
     }
 }

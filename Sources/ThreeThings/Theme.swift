@@ -11,6 +11,9 @@ struct Theme {
     let hairline: Color
     let fill: Color
     let fillStrong: Color
+    /// Behind missed tasks, and their "Missed" label.
+    let missedFill: Color
+    let missedLabel: Color
     let isDark: Bool
 
     static let light = Theme(
@@ -23,6 +26,8 @@ struct Theme {
         hairline: Color.black.opacity(0.07),
         fill: Color.black.opacity(0.04),
         fillStrong: Color.black.opacity(0.08),
+        missedFill: Color(hex: 0xF8F2EA),
+        missedLabel: Color(hex: 0xA2652F),
         isDark: false
     )
 
@@ -36,6 +41,8 @@ struct Theme {
         hairline: Color.white.opacity(0.08),
         fill: Color.white.opacity(0.05),
         fillStrong: Color.white.opacity(0.10),
+        missedFill: Color(hex: 0x312C26),
+        missedLabel: Color(hex: 0xD9A066),
         isDark: true
     )
 }

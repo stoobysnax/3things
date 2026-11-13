@@ -1,35 +1,41 @@
-# 3 Things
+# 3 Today
 
 The three things you can't forget to do today. Nothing more.
 
-- **3 Things**: today's must-dos, in order of importance. Never more than three.
-- **Next**: what's waiting. When one of your 3 Things is done, the top of Next moves into the last slot.
+- **3 Today**: today's must-dos, in order of importance. Never more than three. When one is done,
+  the top Unscheduled task moves up.
+- **Next**: everything for later, in three quiet sections:
+  - **This week**: scheduled in the next 6 days, soonest first
+  - **Later**: scheduled 7 or more days away
+  - **Unscheduled**: no day yet
 - **Done**: what you finished.
 
-Drag any item to any list: drop it on a list in the left column, or hold it there a moment to open
-that list and drop it at an exact spot. Drag within a list to reorder. Right-click works too.
-Double-click to rename.
+**Scheduling**: hover a task and click the calendar (or right-click → Schedule…). Pick Today,
+Tomorrow, No date or any other day, and tick "Remind me at" for an optional time. Or just type it:
+"tomorrow 9am", "mon", "fri 3pm", "in 3 days", "5 min", "9pm". A day holds at most 3 tasks.
 
-**Drag in from other apps**: drag to-dos out of Things (or any text from Notes, Mail, a web page) onto a
-list and each line becomes a new item there.
+**When the day changes**: anything left in 3 Today becomes **Missed**. Missed tasks sit greyed on a
+soft tint below today's three, and at the top of Next. Click one to choose **Keep in today** or
+**Move to Next**. Tasks scheduled for the new day move into 3 Today. (If the Mac was off on a
+scheduled day, those tasks show up as missed rather than disappearing.)
 
-When 3 Things is full, moving something in asks **which task to swap with**. One click swaps them:
-the new task takes that exact position and the old one goes where the new one came from.
+**When something's full**: moving a task into a full 3 Today asks which task to swap with, or lets
+you schedule it for another day instead. Scheduling a 4th task on a day shows that day's 3 so you
+can swap one out. Whatever gets bumped goes to Unscheduled, and 3 Today asks whether to schedule it
+for another day or leave it unscheduled.
 
-The moon button at the bottom left switches to dark mode.
+Drag any task to any list: drop it on a list in the left column, or hold it there a moment to open
+that list and drop it at an exact spot. Dropping into This week or Later takes the day of the task
+you drop it next to. Drag to-dos out of Things (or any text) to create tasks. Double-click to rename.
 
-**Alarms**: hover an item and click the bell. Type how long or when ("5 min", "4 hours", "1h 30m",
-"9pm", "noon") and press Return, or pick a time. An alarm only rings while the item is in
-3 Things, and rings again the next day at the same time if it's still not done. An item in Next keeps
-its time and starts ringing once it moves up.
+**Alarms**: when a task's time comes, 3 Today plays a sound and shows a small window on top with
+**Done** and **Dismiss**. A time on a 3 Today task rings every day until it's done; a time on a
+scheduled task rings on its day. While the app is running it rings by itself (it stays in the menu
+bar when you close the window); otherwise a macOS notification is used, so allow notifications.
 
-When an alarm goes off, 3 Things plays a sound and shows a small window on top with **Done** and
-**Dismiss**. That works while the app is running (it stays in the menu bar when you close the window).
-If 3 Things isn't running, a macOS notification is used instead, so allow notifications when asked.
+⌘1, ⌘2 and ⌘3 switch between the lists. The moon button at the bottom left switches to dark mode.
 
-⌘1, ⌘2 and ⌘3 switch between the lists.
-
-**Menu bar**: the little 3 icon at the top of your screen. Click it to see them and check one off in one click. Closing the window keeps 3 Things in the menu bar.
+**Menu bar**: the little 3 icon at the top of your screen shows today's 3; check one off in one click.
 
 ## Install (Mac)
 
@@ -37,13 +43,13 @@ If 3 Things isn't running, a macOS notification is used instead, so allow notifi
 curl -fsSL https://raw.githubusercontent.com/stoobysnax/3things/main/install.sh | bash
 ```
 
-It downloads, builds and installs **3 Things** into Applications. The first time, macOS may ask to
+It downloads, builds and installs **3 Today** into Applications (replacing the old 3 Things app; your tasks carry over). The first time, macOS may ask to
 install Apple's free Command Line Tools (not the Xcode app). Click Install, then run the command again.
 
 ## Project layout
 
-- `Sources/ThreeThingsCore`: the list rules and saving. No UI, so the iPhone app can share it.
+- `Sources/ThreeThingsCore`: the rules (lists, scheduling, the day changing), typed dates and saving. No UI, so the iPhone app can share it.
 - `Sources/ThreeThings`: the Mac app (SwiftUI).
 - `Tests/ThreeThingsCoreTests`: tests for the list rules (`swift test`).
 
-Your lists are saved in `~/Library/Application Support/3 Things/board.json`.
+Your lists are saved in `~/Library/Application Support/3 Today/board.json`.

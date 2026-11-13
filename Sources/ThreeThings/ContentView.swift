@@ -22,19 +22,22 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            if let id = store.swapIncoming, let incoming = store.board.item(id) {
-                SwapPrompt(incoming: incoming)
+            if let prompt = store.prompt {
+                PromptOverlay(prompt: prompt)
             }
         }
-        .frame(minWidth: 560, minHeight: 380)
+        .frame(minWidth: 600, minHeight: 420)
         .background(theme.background.ignoresSafeArea())
         .background(shortcuts)
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            store.rollOverIfNeeded()
+        }
     }
 
-    /// ⌘1 3 Things, ⌘2 Next, ⌘3 Done.
+    /// ⌘1 3 Today, ⌘2 Next, ⌘3 Done.
     private var shortcuts: some View {
         ZStack {
-            ForEach(Array(ListKind.allCases.enumerated()), id: \.element) { index, list in
+            ForEach(Array(ListKind.sidebar.enumerated()), id: \.element) { index, list in
                 Button("") { selection = list }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
             }
@@ -96,8 +99,13 @@ struct Sidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(ListKind.allCases) { list in
-                SidebarRow(list: list, count: countLabel(list), isSelected: selection == list) {
+            ForEach(ListKind.sidebar) { list in
+                SidebarRow(
+                    list: list,
+                    count: countLabel(list),
+                    needsAction: list == .three && !store.board.missed.isEmpty,
+                    isSelected: selection == list
+                ) {
                     selection = list
                 }
             }
@@ -133,6 +141,8 @@ struct Sidebar: View {
 struct SidebarRow: View {
     let list: ListKind
     let count: String
+    /// Missed tasks are waiting: a small dot.
+    let needsAction: Bool
     let isSelected: Bool
     let select: () -> Void
 
@@ -143,10 +153,16 @@ struct SidebarRow: View {
 
     var body: some View {
         Button(action: select) {
-            HStack {
+            HStack(spacing: 6) {
                 Text(list.title)
                     .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? theme.text : theme.secondary)
+                if needsAction {
+                    Circle()
+                        .fill(theme.missedLabel)
+                        .frame(width: 5, height: 5)
+                        .help("Missed tasks need a decision")
+                }
                 Spacer()
                 Text(count)
                     .font(.system(size: 12))
@@ -176,7 +192,7 @@ struct SidebarRow: View {
     }
 }
 
-// MARK: - List
+// MARK: - Lists
 
 struct ListPane: View {
     let list: ListKind
@@ -184,59 +200,103 @@ struct ListPane: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        let items = store.board.items(in: list)
         VStack(alignment: .leading, spacing: 0) {
-            header(isEmpty: items.isEmpty)
+            header
                 .padding(.horizontal, 32)
                 .padding(.top, 40)
                 .padding(.bottom, 14)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        ItemRow(item: item, list: list)
-                            .onDrag { dragProvider(for: item) }
-                            .modifier(InsertDropTarget { store.receive($0, to: list, at: index) })
+                    switch list {
+                    case .three: todayList
+                    case .next: nextList
+                    default: doneList
                     }
-
-                    Group {
-                        switch list {
-                        case .three:
-                            // Always three slots: the first open one takes a new thing.
-                            ForEach(Array(min(items.count, Board.limit)..<Board.limit), id: \.self) { slot in
-                                if slot == items.count {
-                                    AddRow(list: .three, placeholder: "Add a thing")
-                                } else {
-                                    EmptySlotRow()
-                                }
-                            }
-                        case .next:
-                            AddRow(list: .next, placeholder: "Add to Next")
-                        case .done:
-                            if items.isEmpty {
-                                Text("Nothing finished yet.")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(theme.faint)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 10)
-                            }
-                        }
-                    }
-                    .modifier(InsertDropTarget { store.receive($0, to: list) })
 
                     // The space below the list also takes drops (to the end).
                     Color.clear
                         .frame(maxWidth: .infinity, minHeight: 120)
                         .contentShape(Rectangle())
-                        .modifier(InsertDropTarget { store.receive($0, to: list) })
+                        .modifier(InsertDropTarget { store.receive($0, to: list == .missed ? .next : list) })
                 }
                 .padding(.horizontal, 20)
+                .padding(.bottom, 20)
             }
         }
     }
 
+    // 3 Today: three slots, then anything missed.
     @ViewBuilder
-    private func header(isEmpty: Bool) -> some View {
+    private var todayList: some View {
+        let items = store.board.three
+        rows(items, in: .three)
+        ForEach(Array(min(items.count, Board.limit)..<Board.limit), id: \.self) { slot in
+            Group {
+                if slot == items.count {
+                    AddRow(list: .three, placeholder: "Add a thing")
+                } else {
+                    EmptySlotRow()
+                }
+            }
+            .modifier(InsertDropTarget { store.receive($0, to: .three) })
+        }
+        missedSection
+    }
+
+    // Next: missed first, then this week, later, unscheduled.
+    @ViewBuilder
+    private var nextList: some View {
+        let sections = store.board.sections(today: store.today)
+        missedSection
+        if !sections.thisWeek.isEmpty {
+            SectionHeader(title: "This week")
+            rows(sections.thisWeek, in: .next)
+        }
+        if !sections.later.isEmpty {
+            SectionHeader(title: "Later")
+            rows(sections.later, in: .next)
+        }
+        SectionHeader(title: "Unscheduled")
+        rows(sections.unscheduled, in: .next)
+        AddRow(list: .next, placeholder: "Add to Next")
+            .modifier(InsertDropTarget { store.receive($0, to: .next) })
+    }
+
+    @ViewBuilder
+    private var doneList: some View {
+        let items = store.board.done
+        if items.isEmpty {
+            Text("Nothing finished yet.")
+                .font(.system(size: 14))
+                .foregroundStyle(theme.faint)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+        }
+        rows(items, in: .done)
+    }
+
+    @ViewBuilder
+    private var missedSection: some View {
+        let missed = store.board.missed
+        if !missed.isEmpty {
+            SectionHeader(title: "Missed", color: theme.missedLabel)
+            ForEach(missed) { item in
+                MissedRow(item: item)
+                    .onDrag { dragProvider(for: item) }
+            }
+        }
+    }
+
+    private func rows(_ items: [Item], in list: ListKind) -> some View {
+        ForEach(items) { item in
+            ItemRow(item: item, list: list)
+                .onDrag { dragProvider(for: item) }
+                .modifier(InsertDropTarget { store.receive($0, to: list, before: item.id) })
+        }
+    }
+
+    private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(list.title)
@@ -248,7 +308,7 @@ struct ListPane: View {
                     .foregroundStyle(theme.secondary)
             }
             Spacer()
-            if list == .done && !isEmpty {
+            if list == .done && !store.board.done.isEmpty {
                 Button("Clear") { store.update { $0.clearDone() } }
                     .buttonStyle(.plain)
                     .focusable(false)
@@ -260,10 +320,26 @@ struct ListPane: View {
 
     private var subtitle: String {
         switch list {
-        case .three: return Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
-        case .next: return "Moves up when one of your 3 Things is done."
-        case .done: return "Finished."
+        case .three: return store.today.date().formatted(.dateTime.weekday(.wide).month(.wide).day())
+        case .next: return "Scheduled days move into 3 Today when they arrive."
+        default: return "Finished."
         }
+    }
+}
+
+struct SectionHeader: View {
+    let title: String
+    var color: Color?
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(0.8)
+            .foregroundStyle(color ?? theme.faint)
+            .padding(.horizontal, 12)
+            .padding(.top, 22)
+            .padding(.bottom, 6)
     }
 }
 
@@ -312,99 +388,5 @@ struct EmptySlotRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-    }
-}
-
-// MARK: - Swap prompt
-
-/// Shown when something is sent to a full 3 Things. One click swaps.
-struct SwapPrompt: View {
-    let incoming: Item
-    @EnvironmentObject private var store: BoardStore
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(theme.isDark ? 0.45 : 0.18)
-                .ignoresSafeArea()
-                .onTapGesture { store.cancelSwap() }
-
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Which task do you want to swap with?")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(theme.text)
-                    Text("\u{201C}\(incoming.title)\u{201D} takes its place.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(theme.secondary)
-                        .lineLimit(2)
-                }
-
-                VStack(spacing: 6) {
-                    ForEach(Array(store.board.three.enumerated()), id: \.element.id) { index, item in
-                        SwapChoice(position: index + 1, item: item) {
-                            store.swap(with: item.id)
-                        }
-                    }
-                }
-
-                HStack {
-                    Spacer()
-                    Button("Cancel") { store.cancelSwap() }
-                        .buttonStyle(.plain)
-                        .focusable(false)
-                        .font(.system(size: 13))
-                        .foregroundStyle(theme.secondary)
-                        .keyboardShortcut(.cancelAction)
-                }
-            }
-            .padding(20)
-            .frame(width: 360)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(theme.card)
-                    .shadow(color: .black.opacity(theme.isDark ? 0.5 : 0.15), radius: 24, y: 8)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(theme.hairline)
-            )
-        }
-    }
-}
-
-struct SwapChoice: View {
-    let position: Int
-    let item: Item
-    let choose: () -> Void
-
-    @Environment(\.theme) private var theme
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: choose) {
-            HStack(spacing: 12) {
-                Text("\(position)")
-                    .font(.system(size: 13))
-                    .monospacedDigit()
-                    .foregroundStyle(theme.faint)
-                    .frame(width: 14)
-                Text(item.title)
-                    .font(.system(size: 14))
-                    .foregroundStyle(theme.text)
-                    .lineLimit(1)
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(hovering ? theme.fillStrong : theme.fill)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .onHover { hovering = $0 }
     }
 }

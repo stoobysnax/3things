@@ -20,7 +20,7 @@ struct MenuBarLabel: View {
     }
 }
 
-/// The small panel that drops down from the menu bar: today's 3 Things, check them off in one click.
+/// The small panel that drops down from the menu bar: today's 3, check them off in one click.
 struct MenuBarPanel: View {
     @EnvironmentObject private var store: BoardStore
     @Environment(\.theme) private var theme
@@ -29,11 +29,11 @@ struct MenuBarPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("3 Things")
+                Text("3 Today")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(theme.text)
                 Spacer()
-                Text(Date().formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                Text(store.today.date().formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
                     .font(.system(size: 12))
                     .foregroundStyle(theme.secondary)
             }
@@ -45,11 +45,26 @@ struct MenuBarPanel: View {
                 ForEach(store.board.three) { item in
                     MenuBarRow(item: item)
                 }
-                if store.board.three.count < Board.limit {
+                if store.board.hasRoomToday {
                     AddRow(list: .three, placeholder: "Add a thing")
                 }
             }
             .padding(.horizontal, 6)
+
+            if !store.board.missed.isEmpty {
+                Button(action: openApp) {
+                    HStack(spacing: 6) {
+                        Circle().fill(theme.missedLabel).frame(width: 5, height: 5)
+                        Text("\(store.board.missed.count) missed: decide in 3 Today")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.missedLabel)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+            }
 
             Rectangle()
                 .fill(theme.hairline)
@@ -57,10 +72,7 @@ struct MenuBarPanel: View {
                 .padding(.top, 8)
 
             HStack {
-                Button("Open 3 Things") {
-                    openWindow(id: "main")
-                    NSApp.activate(ignoringOtherApps: true)
-                }
+                Button("Open 3 Today", action: openApp)
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }
             }
@@ -73,6 +85,12 @@ struct MenuBarPanel: View {
         }
         .frame(width: 300)
         .background(theme.background)
+        .onAppear { store.rollOverIfNeeded() }
+    }
+
+    private func openApp() {
+        openWindow(id: "main")
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

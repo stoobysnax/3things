@@ -8,7 +8,7 @@ struct ThreeThingsApp: App {
     @AppStorage("darkMode") private var darkMode = false
 
     var body: some Scene {
-        WindowGroup("3 Things", id: "main") {
+        WindowGroup("3 Today", id: "main") {
             ContentView()
                 .environmentObject(store)
                 .environment(\.theme, darkMode ? .dark : .light)
@@ -37,7 +37,7 @@ struct ThreeThingsApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
-    // Closing the window keeps 3 Things in the menu bar.
+    // Closing the window keeps 3 Today in the menu bar.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
